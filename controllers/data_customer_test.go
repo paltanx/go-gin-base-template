@@ -30,9 +30,14 @@ type MockStorageService struct {
 	mock.Mock
 }
 
-func (m *MockStorageService) ProcessFile(filename string) ([]map[string]interface{}, error) {
+func (m *MockStorageService) ProcessFile(filename string) ([]*map[string]interface{}, error) {
 	args := m.Called(filename)
-	return args.Get(0).([]map[string]interface{}), args.Error(1)
+	return args.Get(0).([]*map[string]interface{}), args.Error(1)
+}
+
+func (m *MockStorageService) Close() error {
+	args := m.Called()
+	return args.Error(0)
 }
 
 type MockPubSubPublishService struct {
@@ -57,13 +62,15 @@ func TestHandlePushMessage(t *testing.T) {
 			name: "Successful processing",
 			setupMocks: func(mps *MockPubSubService, mss *MockStorageService, mpps *MockPubSubPublishService) {
 				mps.On("ExtractStorageEvent", mock.Anything).Return(&services.StorageEvent{Name: "test.json"}, nil)
-				mss.On("ProcessFile", "test.json").Return([]map[string]interface{}{
-					{"payload": map[string]interface{}{
-						"BOPERS_MAE_NAT_BSC": map[string]interface{}{
-							"PEMNB_GLS_NOM_PEL": "John",
-							"PEMNB_GLS_APL_PAT": "Doe",
+				mss.On("ProcessFile", "test.json").Return([]*map[string]interface{}{
+					{
+						"payload": map[string]interface{}{
+							"BOPERS_MAE_NAT_BSC": map[string]interface{}{
+								"PEMNB_GLS_NOM_PEL": "John",
+								"PEMNB_GLS_APL_PAT": "Doe",
+							},
 						},
-					}},
+					},
 				}, nil)
 				mpps.On("PublishMessage", mock.Anything).Return(nil)
 			},
@@ -87,7 +94,7 @@ func TestHandlePushMessage(t *testing.T) {
 			name: "Error processing file",
 			setupMocks: func(mps *MockPubSubService, mss *MockStorageService, mpps *MockPubSubPublishService) {
 				mps.On("ExtractStorageEvent", mock.Anything).Return(&services.StorageEvent{Name: "test.json"}, nil)
-				mss.On("ProcessFile", "test.json").Return([]map[string]interface{}{}, errors.New("processing error"))
+				mss.On("ProcessFile", "test.json").Return([]*map[string]interface{}{}, errors.New("processing error"))
 			},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedResponse: gin.H{
@@ -98,13 +105,15 @@ func TestHandlePushMessage(t *testing.T) {
 			name: "Error publishing message",
 			setupMocks: func(mps *MockPubSubService, mss *MockStorageService, mpps *MockPubSubPublishService) {
 				mps.On("ExtractStorageEvent", mock.Anything).Return(&services.StorageEvent{Name: "test.json"}, nil)
-				mss.On("ProcessFile", "test.json").Return([]map[string]interface{}{
-					{"payload": map[string]interface{}{
-						"BOPERS_MAE_NAT_BSC": map[string]interface{}{
-							"PEMNB_GLS_NOM_PEL": "John",
-							"PEMNB_GLS_APL_PAT": "Doe",
+				mss.On("ProcessFile", "test.json").Return([]*map[string]interface{}{
+					{
+						"payload": map[string]interface{}{
+							"BOPERS_MAE_NAT_BSC": map[string]interface{}{
+								"PEMNB_GLS_NOM_PEL": "John",
+								"PEMNB_GLS_APL_PAT": "Doe",
+							},
 						},
-					}},
+					},
 				}, nil)
 				mpps.On("PublishMessage", mock.Anything).Return(errors.New("publishing error"))
 			},
@@ -117,21 +126,23 @@ func TestHandlePushMessage(t *testing.T) {
 			name: "Error transforming customer data",
 			setupMocks: func(mps *MockPubSubService, mss *MockStorageService, mpps *MockPubSubPublishService) {
 				mps.On("ExtractStorageEvent", mock.Anything).Return(&services.StorageEvent{Name: "test.json"}, nil)
-				mss.On("ProcessFile", "test.json").Return([]map[string]interface{}{
-					{"payload": map[string]interface{}{
-						"BOPERS_MAE_NAT_BSC": map[string]interface{}{
-							"PEMNB_GLS_NOM_PEL": "John",
-							"PEMNB_GLS_APL_PAT": "Doe",
+				mss.On("ProcessFile", "test.json").Return([]*map[string]interface{}{
+					{
+						"payload": map[string]interface{}{
+							"BOPERS_MAE_NAT_BSC": map[string]interface{}{
+								"PEMNB_GLS_NOM_PEL": "John",
+								"PEMNB_GLS_APL_PAT": "Doe",
+							},
 						},
-					}},
+					},
 				}, nil)
 
 				// Simulamos un error en la transformación de datos
-				transformCustomerDataFunc = func(data map[string]interface{}) (*models.Customer, error) {
+				originalTransformFunc := transformCustomerDataFunc
+				transformCustomerDataFunc = func(data *map[string]interface{}) (*models.Customer, error) {
 					return nil, errors.New("transformation error")
 				}
-
-				// No es necesario mockear PublishMessage porque no debería llamarse en este caso
+				t.Cleanup(func() { transformCustomerDataFunc = originalTransformFunc })
 			},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedResponse: gin.H{
@@ -142,38 +153,20 @@ func TestHandlePushMessage(t *testing.T) {
 			name: "Error marshaling customer data",
 			setupMocks: func(mps *MockPubSubService, mss *MockStorageService, mpps *MockPubSubPublishService) {
 				mps.On("ExtractStorageEvent", mock.Anything).Return(&services.StorageEvent{Name: "test.json"}, nil)
-				mss.On("ProcessFile", "test.json").Return([]map[string]interface{}{
-					{"payload": map[string]interface{}{
-						"BOPERS_MAE_NAT_BSC": map[string]interface{}{
-							"PEMNB_GLS_NOM_PEL": "John",
-							"PEMNB_GLS_APL_PAT": "Doe",
+				mss.On("ProcessFile", "test.json").Return([]*map[string]interface{}{
+					{
+						"payload": map[string]interface{}{
+							"BOPERS_MAE_NAT_BSC": map[string]interface{}{
+								"PEMNB_GLS_NOM_PEL": "John",
+								"PEMNB_GLS_APL_PAT": "Doe",
+							},
 						},
-					}},
-				}, nil)
-				transformCustomerDataFunc = func(data map[string]interface{}) (*models.Customer, error) {
-					return nil, errors.New("transformation error")
-				}
-			},
-			expectedStatusCode: http.StatusInternalServerError,
-			expectedResponse: gin.H{
-				"error": "Error transforming customer data: transformation error",
-			},
-		},
-		{
-			name: "Error marshaling customer data",
-			setupMocks: func(mps *MockPubSubService, mss *MockStorageService, mpps *MockPubSubPublishService) {
-				mps.On("ExtractStorageEvent", mock.Anything).Return(&services.StorageEvent{Name: "test.json"}, nil)
-				mss.On("ProcessFile", "test.json").Return([]map[string]interface{}{
-					{"payload": map[string]interface{}{
-						"BOPERS_MAE_NAT_BSC": map[string]interface{}{
-							"PEMNB_GLS_NOM_PEL": "John",
-							"PEMNB_GLS_APL_PAT": "Doe",
-						},
-					}},
+					},
 				}, nil)
 
 				// Aseguramos que la transformación se haga correctamente
-				transformCustomerDataFunc = func(data map[string]interface{}) (*models.Customer, error) {
+				originalTransformFunc := transformCustomerDataFunc
+				transformCustomerDataFunc = func(_ *map[string]interface{}) (*models.Customer, error) {
 					return &models.Customer{
 						PersonalIdentification: models.PersonalCustomerIdentification{
 							CustomerFirstName: "John",
@@ -183,11 +176,15 @@ func TestHandlePushMessage(t *testing.T) {
 				}
 
 				// Simular el error en CustomMarshalJSON
-				customMarshalJSONFunc = func(v interface{}) ([]byte, error) {
+				originalMarshalFunc := customMarshalJSONFunc
+				customMarshalJSONFunc = func(_ interface{}) ([]byte, error) {
 					return nil, errors.New("marshalling error")
 				}
 
-				// No es necesario mockear PublishMessage ya que no se debe llegar a esta etapa
+				t.Cleanup(func() {
+					transformCustomerDataFunc = originalTransformFunc
+					customMarshalJSONFunc = originalMarshalFunc
+				})
 			},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedResponse: gin.H{

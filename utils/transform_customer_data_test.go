@@ -37,7 +37,7 @@ func TestTransformCustomerData(t *testing.T) {
 		},
 	}
 
-	customer, err := utils.TransformCustomerData(data)
+	customer, err := utils.TransformCustomerData(&data)
 	assert.NoError(t, err)
 	assert.Equal(t, "John", customer.PersonalIdentification.CustomerFirstName)
 	assert.Equal(t, "Doe", customer.PersonalIdentification.CustomerLastName)
@@ -49,7 +49,7 @@ func TestTransformCustomerData(t *testing.T) {
 	invalidData := map[string]interface{}{
 		"payload": "invalid structure",
 	}
-	_, err = utils.TransformCustomerData(invalidData)
+	_, err = utils.TransformCustomerData(&invalidData)
 	assert.Error(t, err)
 	assert.Equal(t, "invalid payload structure", err.Error())
 
@@ -61,7 +61,7 @@ func TestTransformCustomerData(t *testing.T) {
 			},
 		},
 	}
-	customer, err = utils.TransformCustomerData(dataWithOneName)
+	customer, err = utils.TransformCustomerData(&dataWithOneName)
 	assert.NoError(t, err)
 	assert.Equal(t, "John", customer.PersonalIdentification.CustomerFirstName)
 	assert.Empty(t, customer.PersonalIdentification.CustomerMiddleName)

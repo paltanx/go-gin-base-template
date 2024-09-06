@@ -16,8 +16,8 @@ var IsEmptyValue = isEmptyValue
 
 var OmitEmptyFields = omitEmptyFields
 
-func TransformCustomerData(data map[string]interface{}) (*models.Customer, error) {
-	payload, ok := data["payload"].(map[string]interface{})
+func TransformCustomerData(data *map[string]interface{}) (*models.Customer, error) {
+	payload, ok := (*data)["payload"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("invalid payload structure")
 	}

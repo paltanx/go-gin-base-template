@@ -30,9 +30,14 @@ type MockStorageService struct {
 	mock.Mock
 }
 
-func (m *MockStorageService) ProcessFile(filename string) ([]map[string]interface{}, error) {
+func (m *MockStorageService) ProcessFile(filename string) ([]*map[string]interface{}, error) {
 	args := m.Called(filename)
-	return args.Get(0).([]map[string]interface{}), args.Error(1)
+	return args.Get(0).([]*map[string]interface{}), args.Error(1)
+}
+
+func (m *MockStorageService) Close() error {
+	args := m.Called()
+	return args.Error(0)
 }
 
 // Mock para PubSubPublishService
@@ -63,13 +68,15 @@ func TestSetupRoutes(t *testing.T) {
 	mockPubSubService.On("ExtractStorageEvent", mock.Anything).Return(&services.StorageEvent{Name: "test.json"}, nil)
 
 	// Configurar el comportamiento esperado del mock StorageService
-	mockStorageService.On("ProcessFile", "test.json").Return([]map[string]interface{}{
-		{"payload": map[string]interface{}{
-			"BOPERS_MAE_NAT_BSC": map[string]interface{}{
-				"PEMNB_GLS_NOM_PEL": "John",
-				"PEMNB_GLS_APL_PAT": "Doe",
+	mockStorageService.On("ProcessFile", "test.json").Return([]*map[string]interface{}{
+		{
+			"payload": map[string]interface{}{
+				"BOPERS_MAE_NAT_BSC": map[string]interface{}{
+					"PEMNB_GLS_NOM_PEL": "John",
+					"PEMNB_GLS_APL_PAT": "Doe",
+				},
 			},
-		}},
+		},
 	}, nil)
 
 	// Configurar el comportamiento esperado del mock PubSubPublishService

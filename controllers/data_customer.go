@@ -55,7 +55,7 @@ func (c *DataCustomerController) HandlePushMessage(ctx *gin.Context) {
 		return
 	}
 
-	log.Printf("customerDataList: %s", customerDataList)
+	log.Printf("customerDataList: %+v", customerDataList)
 
 	var transformedCustomers []json.RawMessage
 	for _, customerData := range customerDataList {
